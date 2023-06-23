@@ -19,22 +19,24 @@ async fn main() -> Result<(), ()> {
     let document_count = database
         .collection::<Document>(collection_name)
         .estimated_document_count(None)
-        .await
-        .unwrap();
+        .await?;
 
     let default_sample_size = 10000;
 
-    // sample size is the max of the default sample size or the square root of the document count
+    // sample size is the max of the default sample size or 1/3 the document count
     // it seems scientific enough
     let sample_size =
-        f64::max(default_sample_size as f64, f64::sqrt(document_count as f64)).round() as i64;
+        f64::max(default_sample_size as f64, document_count as f64 / 3.0).round() as i64;
 
     let pipeline = vec![
+        // start with an adequate sample of the collection
         doc! {
             "$sample": {
                 "size": bson::Bson::Int64(sample_size)
             }
         },
+        // convert the document to an array of key-value pairs. The key is the field name, the value is the type
+        // of the field
         doc! {
             "$project": {
                 "_id": 0,
@@ -173,8 +175,7 @@ async fn main() -> Result<(), ()> {
     let mut result = database
         .collection::<Document>(collection_name)
         .aggregate(pipeline, None)
-        .await
-        .unwrap();
+        .await?;
 
     let query = start.elapsed() - pre_query;
 
